@@ -87,24 +87,6 @@ struct LimitVal {
   struct ast_expr *offset;
 };
 
-static struct ast_expr *
-ast_expr_new_substr(struct region *region, struct ast_expr *str,
-                    struct ast_expr *start, struct ast_expr *length)
-{
-    Token name;
-    name.z = "SUBSTR";
-    name.n = 6;
-    name.isReserved = false;
-
-    struct ast_expr_list *args = ast_expr_list_append(region, NULL, str);
-    args = ast_expr_list_append(region, args, start);
-    if (length != NULL)
-        args = ast_expr_list_append(region, args, length);
-
-    return ast_expr_new_function(region, &name, false, args);
-}
-
-
 } // end %include
 
 // Input is a single SQL command
@@ -1002,13 +984,6 @@ nmaplist(A) ::= expr(X) COLON expr(Y). {
   A = ast_expr_list_append(ctx->region, A, Y);
 }
 
-expr(A) ::= SUBSTRING LP expr(Y) FROM expr(Z) RP. {
-  A = ast_expr_new_substr(ctx->region, Y, Z, NULL);
-}
-expr(A) ::= SUBSTRING LP expr(Y) FROM expr(Z) FOR expr(W) RP. {
-  A = ast_expr_new_substr(ctx->region, Y, Z, W);
-}
-
 expr(A) ::= TRIM(X) LP trim_operands(Y) RP. {
   A = ast_expr_new_function(ctx->region, &X, false, Y);
 }
@@ -1031,6 +1006,24 @@ trim_operands(A) ::= expr(Z) FROM expr(Y). {
 }
 trim_operands(A) ::= expr(Y). {
   A = ast_expr_list_append(ctx->region, NULL, Y);
+}
+
+expr(A) ::= SUBSTRING(X) LP substring_operands(Y) RP. {
+  Token substr = X;
+  substr.z = "SUBSTR";
+  substr.n = 6;
+  A = ast_expr_new_function(ctx->region, &substr, false, Y);
+}
+
+%type substring_operands {struct ast_expr_list *}
+substring_operands(A) ::= expr(S) FROM expr(P) FOR expr(L). {
+  A = ast_expr_list_append(ctx->region, NULL, S);
+  A = ast_expr_list_append(ctx->region, A, P);
+  A = ast_expr_list_append(ctx->region, A, L);
+}
+substring_operands(A) ::= expr(S) FROM expr(P). {
+  A = ast_expr_list_append(ctx->region, NULL, S);
+  A = ast_expr_list_append(ctx->region, A, P);
 }
 
 expr(A) ::= id(X) LP distinct(D) exprlist(Y) RP. {
